@@ -12,52 +12,125 @@ class ResumeViewModel {
     
     // for view and view model binding
     typealias Listener = (Bool) -> ()
+    typealias ErrorListener = (String) -> ()
     
     var listener: Listener?
-    // data model reference
-    var resumeData: ResumeDataModel
+    var errorListener: ErrorListener?
     
+    // data model reference
+    var resumeData: ResumeDataModel?
+    
+    // variables for view model
     var name: String?
     var email: String?
     var telephone: String?
-    var summary: [String]?
-    let techKnowledge: String
-    let experience: [Experience]
+    var summary: [String]
+    var techKnowledge: SkillsViewModel?
+    var experience: [ExperienceViewModel]
     
-    
-    var searchText: String {
-        didSet {
-            // listener?(searchByTitle(searchTitle: searchText))
-            let filted = searchByTitle(searchTitle: searchText)
-            self.filtedViewModel = filted
-        }
-    }
-    
-    var filtedViewModel: [StoryViewModel] {
+    var finishedLoading: Bool {
         didSet {
             listener?(true)
         }
     }
     
-    init() {
-        storiesData = Stories()
-        searchText = ""
-        storiesListViewModel = []
-        filtedViewModel = []
+    var errorStr: String {
+        didSet {
+            errorListener?(errorStr)
+        }
     }
     
-    func getStoriesListView(offset: Int = 0, limit: Int = 30, fields: String = "stories(id,title,cover,user)") {
-        
-        httpServices.getStories(offset: offset, limit: limit, fields: fields) { [weak self] (results) in
-            self?.storiesData = results
-            // transfer data model to view model
-            var tempListVM: [StoryViewModel] = []
-            for story in results.stories {
-                let storyVM = StoryViewModel(dataModel: story)
-                tempListVM.append(storyVM)
+    init() {
+        finishedLoading = false
+        errorStr = ""
+        summary = []
+        experience = []
+    }
+    
+    func getResume() {
+        let resumeRouter = ResumesAPI.resumes(queryParas: nil, bodyParas: nil)
+        do {
+            let netRequest = try resumeRouter.getURLRequest()
+            resumeRouter.netWorks(request: netRequest) { [unowned self] result in
+                switch result {
+                case .success(let data):
+                    do {
+                        let decoder = JSONDecoder()
+                        let jsonData = try decoder.decode(ResumeDataModel.self, from: data)
+                        self.processRes(res: jsonData)
+                    } catch let errData {
+                        self.errorStr = "Error: \(errData.localizedDescription)"
+                    }
+                case .failure(let err):
+                    switch err {
+                    case ResumesAPI.RequestErrors.netConnectionFailed:
+                        self.errorStr = "Net connection failed!"
+                    case ResumesAPI.RequestErrors.returnedDataNil:
+                        self.errorStr = "No returned data!"
+                    default:
+                        self.errorStr = "Something wrong!"
+                    }
+                }
             }
-            self?.storiesListViewModel = tempListVM
-            self?.filtedViewModel = tempListVM
+        } catch let error {
+            switch error {
+            case ResumesAPI.RequestErrors.invalidURL:
+                self.errorStr = "Invalid URL!"
+            case ResumesAPI.RequestErrors.jsonProcessingFailed:
+                self.errorStr = "Wrong body parameters or format!"
+            default:
+                self.errorStr = "Something wrong!"
+            }
+        }
+    }
+    
+    private func processRes(res: ResumeDataModel) {
+        
+        self.resumeData = res
+        
+        self.name = res.name
+        self.email = res.email
+        self.telephone = res.telephone
+        self.summary = res.summary
+        self.techKnowledge = SkillsViewModel(dataModel: res.techKnowledge)
+        
+        self.experience.removeAll()
+        for exp in res.experience {
+            self.experience.append(ExperienceViewModel(dataModel: exp))
+        }
+        
+        self.finishedLoading = true
+    }
+    
+    // loading company logo image
+    static func getImageData(path: String, completion: @escaping (Data?, String?) -> Void) {
+        let imgRouter = ResumesAPI.imgData(path: path)
+        do {
+            let netRequest = try imgRouter.getURLRequest()
+            imgRouter.netWorks(request: netRequest) { result in
+                switch result {
+                case .success(let data):
+                    completion(data, nil)
+                case .failure(let err):
+                    switch err {
+                    case ResumesAPI.RequestErrors.netConnectionFailed:
+                        completion(nil, "Net connection failed!")
+                    case ResumesAPI.RequestErrors.returnedDataNil:
+                        completion(nil, "No returned data!")
+                    default:
+                        completion(nil, "Something wrong!")
+                    }
+                }
+            }
+        } catch let error {
+            switch error {
+            case ResumesAPI.RequestErrors.invalidURL:
+                completion(nil, "Invalid URL!")
+            case ResumesAPI.RequestErrors.jsonProcessingFailed:
+                completion(nil, "Wrong body parameters or format!")
+            default:
+                completion(nil, "Something wrong!")
+            }
         }
     }
     
@@ -65,15 +138,8 @@ class ResumeViewModel {
         self.listener = listener
     }
     
-    func searchByTitle(searchTitle: String) -> [StoryViewModel] {
-        let filted = self.storiesListViewModel.filter({ (storyVM) -> Bool in
-            if searchTitle.isEmpty {
-                return true
-            }
-            return storyVM.title.lowercased().hasPrefix(searchTitle.lowercased())
-        })
-        
-        return filted
+    func bindError(listener: ErrorListener?) {
+        self.errorListener = listener
     }
 }
 

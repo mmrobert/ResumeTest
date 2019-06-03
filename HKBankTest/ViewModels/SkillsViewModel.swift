@@ -7,3 +7,17 @@
 //
 
 import Foundation
+
+// for tech skills 
+struct SkillsViewModel {
+    
+    var languages: String?
+    var databases: String?
+    var technologies: String?
+    
+    init(dataModel: ResumeDataModel.Skills) {
+        self.languages = dataModel.languages
+        self.databases = dataModel.databases
+        self.technologies = dataModel.technologies
+    }
+}
