@@ -48,7 +48,7 @@ enum ResumesAPI {
     var path: String {
         switch self {
         case .resumes( _, _):
-            return "/57ecbb85421f97515a6d49a81b4c256e/raw/699388a3c50d4495c41743e6b72001e3f67e7aaa/resumes"
+            return "/57ecbb85421f97515a6d49a81b4c256e/raw/e8491c1f950c0b0e4c25fc9823b5969e9d5d2299/resumes"
         case .imgData(let urlPath):
             return urlPath
         }
